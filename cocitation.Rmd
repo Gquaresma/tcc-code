@@ -1,0 +1,79 @@
+```{r}
+# install("dy")
+#install.packages(stringdist)
+#install.packages(bibliometrix)
+#install.packages(dplyr)
+#install.packages(parallel)
+
+cat(paste("bibliometrix ", packageVersion("bibliometrix")))
+
+library(parallel)
+library(stringr)
+library(stringdist)
+library(bibliometrix)
+library(dplyr)
+file <- "https://www.bibliometrix.org/datasets/savedrecs.bib"
+
+M <- convert2df(file = file, dbsource = "isi", format = "bibtex")
+load("D:/quare/Gabriel/Faculdade/TCC/Código/computer_TI_clean.Rda")
+```
+
+```{r}
+results <- biblioAnalysis(M)
+summary(results, k=10, pause=F, width=130)
+```
+
+
+```{r}
+new_m <- M[, c("CR")]
+new_m[1:5]
+
+citated <- strsplit(new_m, ";")
+
+df_citated <- data.frame(citated = unlist(citated))
+
+rm(citated, new_m)
+
+## CR <- citations(M, field = "article", sep = ";")
+```
+```{r}
+df_citated$citated <- gsub(".,.*", "", df_citated$citated)
+df_citated$citated <- gsub("\\([0-9]*\\)", "", df_citated$citated)
+
+#df_clean <- data.frame(apply(df_citated, MARGIN = 1, FUN = function(x) trimws(x)))
+df_clean <- subset(df_citated, !duplicated(df_citated))
+df_clean$citated <- str_trim(df_clean$citated)
+df_clean <- na.omit(df_clean)
+
+```
+
+```{r}
+citation_entry <- toupper(readline(prompt = "Type citation name for verification: "))
+
+distance <- stringdist(citation_entry, df_clean$citated, method = "lv")
+
+if(citation_entry %in% df_clean$citated[distance == 0]) {
+  cat("Perfect match -> ", citation_entry)
+} else {
+  result <- df_clean$citated[distance <= 2 ]
+  
+  cat("Possible Matches: ")
+  cat(result, sep = ", ")
+}
+
+```
+
+```{r}
+correct_entry <- toupper(readline(prompt = "If you don't have a perfect match, type the correct citation name: "))
+wrong_entry <- toupper(readline(prompt = "And type the wrong citation you find in our database: "))
+
+df_clean$citated[df_clean$citated == wrong_entry] <- correct_entry
+
+print("Corrected citation: ", correct_entry)
+
+```
+
+```{r}
+stringdist("ATZORI", "BUZER", method = "lv")
+```
+
