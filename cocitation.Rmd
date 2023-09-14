@@ -1,13 +1,14 @@
 ```{r}
-# install("dy")
-#install.packages(stringdist)
-#install.packages(bibliometrix)
-#install.packages(dplyr)
-#install.packages(parallel)
+# install.packages("writexl")
+# install.packages(stringdist)
+# install.packages(bibliometrix)
+# install.packages(dplyr)
+# install.packages("openxlsx")
+
 
 cat(paste("bibliometrix ", packageVersion("bibliometrix")))
 
-library(parallel)
+library(openxlsx)
 library(stringr)
 library(stringdist)
 library(bibliometrix)
@@ -19,61 +20,120 @@ load("D:/quare/Gabriel/Faculdade/TCC/Código/computer_TI_clean.Rda")
 ```
 
 ```{r}
-results <- biblioAnalysis(M)
-summary(results, k=10, pause=F, width=130)
+summary(M, k = 10, pause = F, width = 130)
+cat("Número de colunas: ", ncol(M))
+cat("\nNúmero de Linhas: ", nrow(M))
 ```
 
 
 ```{r}
-new_m <- M[, c("CR")]
-new_m[1:5]
-
-citated <- strsplit(new_m, ";")
-
-df_citated <- data.frame(citated = unlist(citated))
-
-rm(citated, new_m)
-
-## CR <- citations(M, field = "article", sep = ";")
-```
-```{r}
-df_citated$citated <- gsub(".,.*", "", df_citated$citated)
-df_citated$citated <- gsub("\\([0-9]*\\)", "", df_citated$citated)
-
-#df_clean <- data.frame(apply(df_citated, MARGIN = 1, FUN = function(x) trimws(x)))
-df_clean <- subset(df_citated, !duplicated(df_citated))
-df_clean$citated <- str_trim(df_clean$citated)
-df_clean <- na.omit(df_clean)
-
+cat("Colunas data frame: ", colnames(new_df))
+cat("\nNúmero de colunas: ", ncol(new_df))
+cat("\nNúmero de Linhas: ", nrow(new_df))
 ```
 
+
 ```{r}
-citation_entry <- toupper(readline(prompt = "Type citation name for verification: "))
+df <- M[, c("CR", "TI")]
+df <- na.omit(df)
 
-distance <- stringdist(citation_entry, df_clean$citated, method = "lv")
+df$CR <- as.list(df$CR)
+df$CR <- lapply(df$CR, function(x) {
+  parts <- unlist(strsplit(x, ";"))
+  parts <- sub(",.*", "", parts)
+  trim <- trimws(parts)
 
-if(citation_entry %in% df_clean$citated[distance == 0]) {
-  cat("Perfect match -> ", citation_entry)
+  trim
+})
+
+df$common_citation <- NA
+
+
+print(df$CR[1])
+```
+
+```{r}
+df$common_citation <- lapply(seq_len(nrow(df)), function(i) {
+  current_citation <- df$CR[[i]]
+  other_citation <- unlist(df$CR[-i])
+  common_citation <- intersect(current_citation, other_citation)
+})
+
+df$common_articles <- lapply(df$common_citation, function(citations) {
+  index <- sapply(df$CR, function(cit) all(cit %in% citations))
+  common_articles <- df$TI[index]
+  toString(unique(common_articles))
+})
+```
+
+```{r}
+df$common_citation <- lapply(df$common_citation, function(citation) {
+  distances <- stringdistmatrix(citation, citation, method = "lv")
+  distances[upper.tri(distances)] <- NA
+  distances[distances > 2] <- NA
+  distances <- apply(distances, 2, function(x) citation[!is.na(x) & x <= 2])
+  distances <- distances[sapply(distances, length) > 0]
+  distances
+})
+```
+
+```{r}
+new_df <- df[c("common_articles", "common_citation")]
+nrow(new_df)
+write.xlsx(new_df, file = "result.xlsx", rowNames = FALSE, showNA = FALSE)
+```
+
+
+```{r}
+find_similar_strings <- function(input_string, threshold = 4) {
+  print("Processing...")
+  similar_strings <- c()
+
+  for (string_list in new_df$common_citation) {
+    for (string in string_list) {
+      if (!any(input_string == string)) { # Exclude identical strings
+        distance <- stringdistmatrix(input_string, string, method = "lv")
+        if (any(distance <= threshold) | any(distance == 0)) {
+          similar_strings <- c(similar_strings, string)
+        }
+      }
+    }
+  }
+  return(unique(similar_strings))
+}
+```
+
+
+```{r}
+citation_entry <- toupper(readline(prompt = "Type citaded author name for verification: "))
+
+similar_strings <- find_similar_strings(citation_entry)
+
+if (length(similar_strings) > 0) {
+  cat("Similars strings founded:\n")
+  cat(paste(similar_strings, collapse = ", "), "\n")
 } else {
-  result <- df_clean$citated[distance <= 2 ]
-  
-  cat("Possible Matches: ")
-  cat(result, sep = ", ")
+  cat("No similar strings found.\n")
+}
+```
+
+
+```{r}
+replacement_string <- toupper(readline("If you dont have a perfect match enter the correct replacement citated author name: "))
+
+selected_string <- toupper(readline("Enter the incorrect cited author name that should be replaced: "))
+
+for (i in 1:length(similar_strings)) {
+  if (similar_strings[i] == selected_string) {
+    new_df$common_citation <- lapply(new_df$common_citation, function(string_list) {
+      string_list[string_list == selected_string] <- replacement_string
+      return(string_list)
+    })
+    break
+  }
 }
 
-```
-
-```{r}
-correct_entry <- toupper(readline(prompt = "If you don't have a perfect match, type the correct citation name: "))
-wrong_entry <- toupper(readline(prompt = "And type the wrong citation you find in our database: "))
-
-df_clean$citated[df_clean$citated == wrong_entry] <- correct_entry
-
-print("Corrected citation: ", correct_entry)
-
-```
-
-```{r}
-stringdist("ATZORI", "BUZER", method = "lv")
+cat("Updated DataFrame, see results in result_updated.xlsx")
+write.xlsx(new_df, file = "result_updated.xlsx", rowNames = FALSE, showNA = FALSE)
 ```
 
