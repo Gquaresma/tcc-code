@@ -20,7 +20,8 @@ load("D:/quare/Gabriel/Faculdade/TCC/Código/computer_TI_clean.Rda")
 ```
 
 ```{r}
-summary(M, k = 10, pause = F, width = 130)
+results <- biblioAnalysis(M)
+summary(results, k=10, pause=F, width=130)
 cat("Número de colunas: ", ncol(M))
 cat("\nNúmero de Linhas: ", nrow(M))
 ```
@@ -85,7 +86,7 @@ write.xlsx(new_df, file = "result.xlsx", rowNames = FALSE, showNA = FALSE)
 
 
 ```{r}
-find_similar_strings <- function(input_string, threshold = 4) {
+find_similar_strings <- function(input_string, threshold = 2) {
   print("Processing...")
   similar_strings <- c()
 
